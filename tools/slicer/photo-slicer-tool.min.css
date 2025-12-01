@@ -529,7 +529,10 @@ footer {
 }
 
 
-/* --- 赛博朋克 (Cyber) 主题专属修复 --- */
+
+/* =========================================
+         赛博朋克 (Cyber) 主题专属修复
+   ========================================= */
 
 /* 1. 修复字体颜色看不清的问题 */
 /* 强制将 "text-muted" (原本的灰色) 改为主题色 (青色)，并稍微降低透明度 */
@@ -563,4 +566,84 @@ footer {
 /* 修复输入框占位符颜色 */
 [data-theme="cyber"] .form-control::placeholder {
     color: rgba(0, 255, 204, 0.5) !important;
+}
+
+
+/* =========================================
+   手机端适配修复 (Mobile Responsive Fixes)
+   ========================================= */
+@media (max-width: 768px) {
+
+    /* --- 1. 修复“切片结果”容器 --- */
+    #previewGrid {
+        /* 强制覆盖 JS 设置的固定列数 */
+        /* 手机端改为 2 列显示，这样图片够大且不会溢出 */
+        grid-template-columns: repeat(2, 1fr) !important; 
+        gap: 8px !important;
+    }
+
+    /* 调整卡片内边距，节省空间 */
+    .slice-card {
+        padding: 5px !important;
+    }
+
+    /* --- 2. 修复“切片预览与微调”弹窗底部 --- */
+    /* 将底部栏改为垂直排列，防止挤压 */
+    #slicePreviewModal .modal-footer {
+        flex-direction: column !important; 
+        height: auto !important;
+        padding: 15px 10px !important;
+        gap: 15px;
+    }
+
+    /* (左侧) 信息统计块：改为居中横向排列 */
+    #slicePreviewModal .modal-footer > div.text-start {
+        padding-left: 0 !important;
+        width: 100%;
+        text-align: center !important;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 15px;
+        min-width: auto !important;
+    }
+    /* 让原本竖排的文字在一行显示 */
+    #slicePreviewModal .modal-footer > div.text-start > div {
+        display: inline-block;
+        margin-bottom: 0;
+    }
+
+    /* (中间) 缩放控件：取消绝对定位，让它流式排布 */
+    #slicePreviewModal .modal-footer > div.position-absolute {
+        position: static !important; /* 关键：取消绝对定位 */
+        transform: none !important;
+        margin: 0 !important;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+    }
+
+    /* (右侧) 设置滑块：宽度占满并居中 */
+    #slicePreviewModal .modal-footer > div.d-flex.flex-column {
+        padding-right: 0 !important;
+        width: 100%;
+        align-items: center !important;
+        min-width: auto !important;
+    }
+
+    /* 调整具体设置行的对齐方式 */
+    #slicePreviewModal .modal-footer .d-flex.align-items-center.justify-content-end {
+        justify-content: center !important;
+        width: 100% !important;
+    }
+    
+    /* 增加滑块区域的点击面积 */
+    #slicePreviewModal .form-range {
+        width: 50% !important; /* 稍微加宽滑块 */
+    }
+    
+    /* 修复弹窗内图片容器的高度，避免手机上太高 */
+    #slicePreviewImgContainer {
+        height: 40vh !important; 
+    }
 }
