@@ -724,7 +724,7 @@ function initSettings() {
         appData.webdav = {url, user, pass};
         try {
             davMsg.textContent = "上传中...";
-            await fetch(url + 'backup.json', {
+            await fetch(url + 'mytab_backup.json', {
                 method: 'PUT',
                 headers: {'Authorization': 'Basic ' + btoa(user + ":" + pass)},
                 body: JSON.stringify(appData)
@@ -738,7 +738,7 @@ function initSettings() {
         const {url, user, pass} = getDav();
         try {
             davMsg.textContent = "下载中...";
-            const res = await fetch(url + 'backup.json', {
+            const res = await fetch(url + 'mytab_backup.json', {
                 headers: {'Authorization': 'Basic ' + btoa(user + ":" + pass)}
             });
             if(res.ok) {
