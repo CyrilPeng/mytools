@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>新标签页</title>
+    <link rel="stylesheet" href="css/bootstrap-icons.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- 背景层 -->
+    <div class="background" id="bgLayer"></div>
+
+    <!-- 布局容器 -->
+    <div class="layout">
+        <!-- 左侧侧边栏 -->
+        <div class="sidebar">
+            <div class="sidebar-scroll-area">
+                <div class="sidebar-top" id="sidebarList"></div>
+            </div>
+        </div>
+
+        <!-- 右侧主内容 -->
+        <div class="main-content">
+            <!-- 搜索框 -->
+            <div class="search-container">
+                <div class="search-engine-select" id="engineSelectBtn">
+                    <img id="currentEngineIcon" src="" alt="icon">
+                    <div class="engine-dropdown" id="engineDropdown"></div>
+                </div>
+                <input type="text" id="searchInput" placeholder="输入搜索内容...">
+            </div>
+
+            <!-- 图标网格 -->
+            <div class="grid-container" id="grid"></div>
+        </div>
+    </div>
+
+    <!-- 设置按钮 -->
+    <div class="floating-settings-btn" id="settingsBtn" title="设置">
+        <i class="bi bi-gear-fill"></i>
+    </div>
+
+    <!-- 侧边栏右键菜单 -->
+    <div class="context-menu" id="sidebarContextMenu">
+        <div class="menu-item" id="ctxSidebarEdit"><i class="bi bi-pencil-square"></i> 编辑</div>
+        <div class="menu-item delete" id="ctxSidebarDelete"><i class="bi bi-trash"></i> 移除</div>
+    </div>
+
+    <!-- 主区域图标右键菜单 -->
+    <div class="context-menu" id="contextMenu">
+        <div class="menu-item" id="ctxOpenCurrent">当前页面打开</div>
+        <div class="menu-item" id="ctxOpenNew">新标签页打开</div>
+        <div class="menu-item" id="ctxEdit">编辑图标</div>
+        <div class="menu-item delete" id="ctxDelete">删除</div>
+    </div>
+
+    <!-- 侧边编辑抽屉 (添加/编辑图标用) -->
+    <div class="drawer-overlay" id="drawerOverlay"></div>
+    <div class="edit-drawer" id="editDrawer">
+        <div class="drawer-header">
+            <span class="back-btn" id="closeDrawerBtn">❮</span>
+            <span class="drawer-title" id="drawerTitle">自定义添加</span>
+            <button class="finish-btn" id="saveDrawerBtn">完成</button>
+        </div>
+        
+        <div class="drawer-content">
+            <div class="input-group">
+                <input type="text" id="drawerUrl" placeholder="输入网站链接 https://...">
+                <span class="input-icon">🔗</span>
+            </div>
+            <div class="input-group">
+                <input type="text" id="drawerName" placeholder="输入网站名称">
+                <span class="input-icon">📝</span>
+            </div>
+
+            <div class="icon-type-tabs">
+                <div class="type-tab active" data-type="online">在线图标</div>
+                <div class="type-tab" data-type="solid">纯色图标</div>
+                <div class="type-tab" data-type="local">本地上传</div>
+            </div>
+
+            <div class="icon-preview-area">
+                <div class="icon-box preview-box" id="previewBox">
+                    <img id="previewImg" src="" style="display:none;">
+                    <span id="previewText"></span>
+                </div>
+            </div>
+
+            <!-- 在线图标面板 -->
+            <div class="tab-panel active" id="panel-online">
+                <div class="input-group">
+                    <input type="text" id="customIconUrl" placeholder="自定义图标地址 (可选)">
+                    <span class="input-icon">🖼️</span>
+                </div>
+                <button id="fetchIconBtn" class="fetch-btn">获取图标</button>
+                <p class="hint">输入网址自动获取，或输入图片地址覆盖</p>
+            </div>
+
+            <div class="tab-panel" id="panel-solid">
+                <div class="color-grid" id="colorGrid"></div>
+                <div class="input-group small-mt">
+                    <input type="text" id="drawerIconText" maxlength="2" placeholder="图标文字 (建议1-2字)">
+                    <span class="input-icon">T</span>
+                </div>
+            </div>
+
+            <div class="tab-panel" id="panel-local">
+                <div class="upload-area" id="uploadArea">
+                    <span class="plus">+</span>
+                    <span>点击上传图片</span>
+                </div>
+                <input type="file" id="localFileInput" accept="image/*" style="display:none;">
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置/备份 弹窗 -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content settings-content">
+            <div class="tabs">
+                <div class="tab active" data-target="bg-panel">背景设置</div>
+                <div class="tab" data-target="backup-panel">备份与恢复</div>
+            </div>
+            
+            <div class="panel active" id="bg-panel">
+                <h4>背景类型</h4>
+                <div class="bg-type-select">
+                    <label><input type="radio" name="bgType" value="img" checked> 图片链接</label>
+                    <label><input type="radio" name="bgType" value="color"> 纯色背景</label>
+                </div>
+                <div id="bgInputGroupUrl">
+                    <p>自定义图片链接:</p>
+                    <input type="text" id="bgInput" placeholder="https://...">
+                </div>
+                <div id="bgInputGroupColor" style="display:none;">
+                    <p>选择颜色:</p>
+                    <input type="color" id="bgColorInput" value="#333333" style="height: 40px; padding: 0;">
+                </div>
+                <button class="primary-btn" id="saveBgBtn">保存背景</button>
+            </div>
+
+            <div class="panel" id="backup-panel">
+                <h4>本地备份</h4>
+                <div class="row">
+                    <button id="exportLocalBtn">导出配置 (JSON)</button>
+                    <button id="importLocalBtn" style="background:#666;">导入配置</button>
+                    <input type="file" id="fileInput" style="display:none" accept=".json">
+                </div>
+                <hr>
+                <h4>WebDAV 云同步</h4>
+                <input type="text" id="davUrl" placeholder="WebDAV 地址">
+                <input type="text" id="davUser" placeholder="账号">
+                <input type="password" id="davPass" placeholder="授权码（注意不是登录密码）">
+                <div class="row">
+                    <button id="davUploadBtn">上传备份</button>
+                    <button id="davDownloadBtn">恢复备份</button>
+                </div>
+                <p class="status-msg" id="davMsg"></p>
+            </div>
+            <button class="close-modal" id="closeSettings">×</button>
+        </div>
+    </div>
+
+    <!-- 添加搜索引擎模态窗口 -->
+    <div id="engineModal" class="engine-modal-overlay">
+        <div class="engine-modal-box">
+            <div class="engine-modal-header">
+                <span>添加搜索引擎</span>
+                <button class="close-engine-modal">×</button>
+            </div>
+            <div class="engine-modal-body">
+                <div class="preset-engine-grid" id="presetEngineGrid"></div>
+            </div>
+            <div class="engine-modal-footer">
+                <div class="custom-engine-title">自定义搜索引擎</div>
+                <div class="custom-engine-input-group">
+                    <div class="custom-icon-preview">🌐</div>
+                    <input type="text" id="customEngineNameInput" placeholder="名称">
+                    <input type="text" id="customEngineUrlInput" placeholder="输入搜索地址，用 %s 代替关键词">
+                    <button id="saveCustomEngineBtn">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 侧边栏编辑模态窗口 -->
+    <div class="modal" id="sidebarModal">
+        <div class="modal-content sidebar-edit-content">
+            <button class="close-modal" id="closeSidebarModal">×</button>
+            <h3>编辑分组</h3>
+            <div class="sidebar-icon-grid" id="sidebarIconGrid"></div>
+            <div class="input-group small-mt">
+                <input type="text" id="sidebarNameInput" placeholder="分组名称">
+                <span class="input-icon">Aa</span>
+            </div>
+            <div class="row" style="margin-top: 20px;">
+                <button class="primary-btn" id="saveSidebarBtn">保存</button>
+                <button class="delete-btn" id="deleteSidebarBtn" style="background: transparent; border:1px solid #444; color: #888;">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

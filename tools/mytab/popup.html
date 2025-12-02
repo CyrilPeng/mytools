@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { width: 300px; font-family: sans-serif; padding: 15px; background: #f9f9f9; }
+        h3 { margin: 0 0 15px 0; color: #333; font-size: 16px; }
+        .row { margin-bottom: 12px; }
+        label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; }
+        input, select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        
+        .preview { display: flex; align-items: center; margin-bottom: 15px; background: white; padding: 10px; border-radius: 8px; border: 1px solid #eee;}
+        .preview img { width: 32px; height: 32px; border-radius: 6px; margin-right: 10px; }
+        .preview span { font-weight: bold; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        button { width: 100%; background: #007aff; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        button:hover { background: #005bb5; }
+        .success-msg { color: green; text-align: center; font-size: 12px; margin-top: 10px; display: none; }
+    </style>
+</head>
+<body>
+    <h3>添加到新标签页</h3>
+    
+    <div class="preview">
+        <img id="pIcon" src="">
+        <span id="pTitle">Loading...</span>
+    </div>
+
+    <div class="row">
+        <label>名称</label>
+        <input type="text" id="nameInput">
+    </div>
+
+    <div class="row">
+        <label>选择分类</label>
+        <select id="catSelect"></select>
+    </div>
+
+    <button id="addBtn">确定添加</button>
+    <div class="success-msg" id="msg">添加成功！</div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "MyTab Alpha 1.0",
+  "version": "1.0",
+  "description": "高仿WeTab：右键菜单 + 多引擎搜索 + WebDAV备份",
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  },
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "<all_urls>" 
+  ],
+  "icons": {
+    "128": "icon.png"
+  }
+}
