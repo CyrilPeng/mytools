@@ -86,14 +86,10 @@
                 </div>
             </div>
 
-            <!-- 在线图标面板 -->
+            <!-- 在线图标面板 (已清空自定义输入框和按钮) -->
             <div class="tab-panel active" id="panel-online">
-                <div class="input-group">
-                    <input type="text" id="customIconUrl" placeholder="自定义图标地址 (可选)">
-                    <span class="input-icon">🖼️</span>
-                </div>
-                <button id="fetchIconBtn" class="fetch-btn">获取图标</button>
-                <p class="hint">输入网址自动获取，或输入图片地址覆盖</p>
+                <!-- 这里不再包含自定义URL输入框，仅保留占位以维持Tab切换逻辑，或者可以留空 -->
+                <p class="hint" style="margin-top: 0;">将根据上方网址自动获取图标</p>
             </div>
 
             <div class="tab-panel" id="panel-solid">

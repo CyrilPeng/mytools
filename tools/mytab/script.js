@@ -179,7 +179,7 @@ function renderSidebar() {
     sidebarList.appendChild(addBtn);
 }
 
-// [核心修改] 渲染网格图标：优先使用保存的 content，不再每次都计算
+// 渲染网格图标
 function renderGrid(sites, filterText = "") {
     grid.innerHTML = '';
     const displaySites = filterText 
@@ -206,9 +206,7 @@ function renderGrid(sites, filterText = "") {
                     <img src="${site.content}"> 
                 </div>`;
         } else {
-            // [重点] 在线图标逻辑
-            // 1. 优先尝试使用已经保存的 content (这是解决每次刷新都获取的关键)
-            // 2. 如果 content 为空 (旧数据)，则使用 domain 自动推导
+            // 在线图标逻辑
             let imgSrc = site.content;
             const domain = getDomain(site.url);
             
@@ -216,7 +214,7 @@ function renderGrid(sites, filterText = "") {
                 imgSrc = `https://api.iowen.cn/favicon/${domain}.png`;
             }
             
-            // 备用图标（如果主图标挂了，用 Google API）
+            // 备用图标
             const fallbackIconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
             
             iconHtml = `
@@ -234,11 +232,9 @@ function renderGrid(sites, filterText = "") {
                 const currentSrc = this.src;
                 const fallback = this.getAttribute('data-fallback');
                 
-                // 如果当前图片加载失败，且还没试过 fallback，则尝试 fallback
                 if (currentSrc !== fallback && fallback) {
                     this.src = fallback;
                 } else {
-                    // 彻底失败，显示文字代替
                     this.style.display = 'none';
                     this.parentNode.innerHTML = `<span>${site.name.substring(0,1)}</span>`;
                     this.parentNode.style.backgroundColor = '#ccc';
@@ -773,32 +769,22 @@ function initDrawer() {
 
     // 绑定输入事件以实时预览
     const drawerUrl = document.getElementById('drawerUrl');
-    const customIconUrl = document.getElementById('customIconUrl'); 
+    // [修改] 删除了 customIconUrl 的绑定
     const drawerIconText = document.getElementById('drawerIconText');
     const drawerName = document.getElementById('drawerName');
-    const fetchIconBtn = document.getElementById('fetchIconBtn'); 
+    // [修改] 删除了 fetchIconBtn 的绑定
 
-    drawerUrl.addEventListener('input', () => {
+    // 简化监听逻辑，确保每次输入都触发更新
+    const triggerUpdate = () => {
         if(tempIconData.type === 'online') updatePreview();
-    });
+    };
 
-    if (customIconUrl) {
-        customIconUrl.addEventListener('input', () => {
-             if(tempIconData.type === 'online') updatePreview();
-        });
-    }
-
-    if (fetchIconBtn) {
-        fetchIconBtn.onclick = () => {
-            if (tempIconData.type === 'online') {
-                updatePreview();
-            }
-        };
-    }
+    drawerUrl.addEventListener('input', triggerUpdate);
+    // [修改] 删除了 customIconUrl 的监听
 
     drawerIconText.addEventListener('input', (e) => {
         tempIconData.content = e.target.value;
-        updatePreview();
+        if(tempIconData.type === 'solid') updatePreview();
     });
 
     drawerName.addEventListener('input', () => {
@@ -845,7 +831,7 @@ function openDrawer(isEdit, index = -1) {
     
     const drawerUrl = document.getElementById('drawerUrl');
     const drawerName = document.getElementById('drawerName');
-    const customIconUrl = document.getElementById('customIconUrl');
+    // [修改] 删除了 customIconUrl 的获取
     const drawerIconText = document.getElementById('drawerIconText');
     const title = document.getElementById('drawerTitle');
     
@@ -853,7 +839,7 @@ function openDrawer(isEdit, index = -1) {
 
     drawerUrl.value = '';
     drawerName.value = '';
-    if(customIconUrl) customIconUrl.value = ''; 
+    // [修改] 删除了 customIconUrl 的重置
     drawerIconText.value = '';
     
     tempIconData = { type: 'online', content: '', bgColor: '#FF9C9C' };
@@ -869,10 +855,7 @@ function openDrawer(isEdit, index = -1) {
         tempIconData.content = site.content || ''; 
         tempIconData.bgColor = site.bgColor || '#FF9C9C';
         
-        if (tempIconData.type === 'online' && customIconUrl) {
-            // 如果有内容，回填到自定义输入框
-            customIconUrl.value = tempIconData.content;
-        }
+        // [修改] 删除了将内容回填到 customIconUrl 的逻辑
 
         if(tempIconData.type === 'solid') {
             drawerIconText.value = tempIconData.content;
@@ -902,48 +885,67 @@ function closeDrawer() {
     }, 300);
 }
 
+// [修复] 改进的预览更新逻辑
 function updatePreview() {
     const drawerUrl = document.getElementById('drawerUrl');
-    const customIconUrl = document.getElementById('customIconUrl');
+    // [修改] 删除了 customIconUrl 获取
     const drawerName = document.getElementById('drawerName');
     const drawerIconText = document.getElementById('drawerIconText');
     const previewBox = document.getElementById('previewBox');
     const previewImg = document.getElementById('previewImg');
     const previewText = document.getElementById('previewText');
 
+    // 1. 重置状态：先隐藏图片，清空文字
     previewBox.style.backgroundColor = 'rgba(255,255,255,0.9)';
     previewBox.style.color = '#333';
     previewImg.style.display = 'none';
-    previewImg.onerror = null; 
     previewText.textContent = '';
+    
+    // 清除旧的事件绑定，防止冲突
+    previewImg.onload = null;
+    previewImg.onerror = null;
 
     if (tempIconData.type === 'online') {
-        const customVal = customIconUrl ? customIconUrl.value.trim() : "";
+        // [修改] 不再检查 customVal，直接使用 urlVal
         const urlVal = drawerUrl.value.trim();
 
-        if (customVal) {
-            previewImg.src = customVal;
-            previewImg.style.display = 'block';
-            previewImg.onerror = function() {
-                this.style.display = 'none';
-                previewText.textContent = '?';
+        let targetSrc = "";
+        let useFallback = false;
+        const domain = getDomain(urlVal);
+
+        if (urlVal && domain) {
+            // 默认先尝试 iowen 的 API
+            targetSrc = `https://api.iowen.cn/favicon/${domain}.png`;
+            useFallback = true; // 标记可以使用备用源
+        }
+
+        if (targetSrc) {
+            // 设置图片源
+            previewImg.src = targetSrc;
+
+            // 加载成功：显示图片
+            previewImg.onload = function() {
+                this.style.display = 'block';
+                previewText.textContent = '';
             };
-        } 
-        else if (urlVal) {
-            const domain = getDomain(urlVal);
-            if(domain) {
-                previewImg.src = `https://api.iowen.cn/favicon/${domain}.png`;
-                previewImg.style.display = 'block';
-                previewImg.onerror = function() {
+
+            // 加载失败：尝试备用源或显示问号
+            previewImg.onerror = function() {
+                // 如果可以使用备用源，且当前还没用过 Google API (防止死循环)
+                if (useFallback && !this.src.includes('google.com')) {
+                    console.log("Primary icon failed, trying fallback...");
+                    this.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+                } else {
+                    // 彻底失败
                     this.style.display = 'none';
                     previewText.textContent = '?';
                 }
-            } else {
-                previewText.textContent = "?";
-            }
+            };
         } else {
+            // 没有 URL 输入
             previewText.textContent = "?";
         }
+
     } else if (tempIconData.type === 'solid') {
         previewBox.style.backgroundColor = tempIconData.bgColor;
         previewBox.style.color = 'white';
@@ -959,12 +961,11 @@ function updatePreview() {
     }
 }
 
-// [核心修改] 保存逻辑：在保存时就计算好图标 URL 并存入 content
 function saveDrawerData() {
     if(!appData) return;
     const drawerUrl = document.getElementById('drawerUrl');
     const drawerName = document.getElementById('drawerName');
-    const customIconUrl = document.getElementById('customIconUrl');
+    // [修改] 删除了 customIconUrl 获取
     
     const name = drawerName.value.trim();
     let url = drawerUrl.value.trim();
@@ -972,17 +973,11 @@ function saveDrawerData() {
     if (!name || !url) return alert("请填写名称和网址");
     if (!url.startsWith('http')) url = 'https://' + url;
 
-    // [重点] 确保保存的内容是具体的 URL 字符串
     if (tempIconData.type === 'online') {
-        const customVal = customIconUrl ? customIconUrl.value.trim() : "";
-        if (customVal) {
-            // 如果用户填了自定义图标，就保存自定义的
-            tempIconData.content = customVal;
-        } else {
-            // 否则，自动生成 API 链接并保存，而不是保存空字符串
-            const domain = getDomain(url);
-            tempIconData.content = `https://api.iowen.cn/favicon/${domain}.png`;
-        }
+        // [修改] 不再检查 customVal，始终自动生成
+        const domain = getDomain(url);
+        // 默认保存 iowen 格式，渲染时会自动回退
+        tempIconData.content = `https://api.iowen.cn/favicon/${domain}.png`;
     }
 
     const newSite = {

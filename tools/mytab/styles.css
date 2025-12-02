@@ -285,22 +285,7 @@ body { font-family: "Segoe UI", sans-serif; height: 100vh; overflow: hidden; col
 .preview-box { width: 80px; height: 80px; font-size: 30px; transition: 0.2s; }
 .hint { color: #666; font-size: 12px; margin-top: 10px; }
 
-.fetch-btn {
-    width: 100%;
-    padding: 10px;
-    background: #333;
-    color: #eee;
-    border: 1px solid #444;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: 0.2s;
-    font-size: 13px;
-    margin-bottom: 5px;
-}
-.fetch-btn:hover {
-    background: #444;
-    color: white;
-}
+/* --- [删除] fetch-btn 样式已移除 --- */
 
 .color-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; width: 100%; }
 .color-circle { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; box-sizing: border-box; }
