@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>新标签页</title>
+    <!-- 引入 Bootstrap Icons -->
     <link rel="stylesheet" href="css/bootstrap-icons.css">
+    <!-- 引入 Cropper.js 样式 -->
+    <link rel="stylesheet" href="css/cropper.min.css">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -86,10 +89,8 @@
                 </div>
             </div>
 
-            <!-- 在线图标面板 (已清空自定义输入框和按钮) -->
             <div class="tab-panel active" id="panel-online">
-                <!-- 这里不再包含自定义URL输入框，仅保留占位以维持Tab切换逻辑，或者可以留空 -->
-                <p class="hint" style="margin-top: 0;">将根据上方网址自动获取图标</p>
+                <p class="hint" style="margin-top: 0;">将根据上方网址自动获取图标并缓存到本地</p>
             </div>
 
             <div class="tab-panel" id="panel-solid">
@@ -103,57 +104,138 @@
             <div class="tab-panel" id="panel-local">
                 <div class="upload-area" id="uploadArea">
                     <span class="plus">+</span>
-                    <span>点击上传图片</span>
+                    <span>点击上传图片并裁剪</span>
                 </div>
                 <input type="file" id="localFileInput" accept="image/*" style="display:none;">
             </div>
         </div>
     </div>
 
-    <!-- 设置/备份 弹窗 -->
-    <div class="modal" id="settingsModal">
-        <div class="modal-content settings-content">
-            <div class="tabs">
-                <div class="tab active" data-target="bg-panel">背景设置</div>
-                <div class="tab" data-target="backup-panel">备份与恢复</div>
+    <!-- 图片裁剪模态窗口 -->
+    <div class="modal" id="cropperModal" style="z-index: 1100;">
+        <div class="modal-content cropper-content">
+            <h3>裁剪图片</h3>
+            <div class="img-container">
+                <img id="cropperImage" src="">
             </div>
-            
-            <div class="panel active" id="bg-panel">
-                <h4>背景类型</h4>
-                <div class="bg-type-select">
-                    <label><input type="radio" name="bgType" value="img" checked> 图片链接</label>
-                    <label><input type="radio" name="bgType" value="color"> 纯色背景</label>
+            <div class="cropper-actions">
+                <button class="delete-btn" id="cancelCropBtn">取消</button>
+                <button class="primary-btn" id="confirmCropBtn">确认裁剪</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全新设计的设置窗口 -->
+    <div class="modal" id="settingsModal">
+        <div class="setting-container">
+            <!-- 设置侧边栏 -->
+            <div class="setting-sidebar">
+                <div class="user-profile">
+                    <div class="avatar-circle"><i class="bi bi-person-fill"></i></div>
+                    <span class="user-name">本地用户</span>
                 </div>
-                <div id="bgInputGroupUrl">
-                    <p>自定义图片链接:</p>
-                    <input type="text" id="bgInput" placeholder="https://...">
+                <ul class="setting-nav">
+                    <!-- 这里的 data-target 对应右侧的内容ID -->
+                    <li class="nav-item active" data-target="set-general"><i class="bi bi-sliders"></i> 常规设置</li>
+                    <li class="nav-item" data-target="set-wallpaper"><i class="bi bi-image"></i> 壁纸</li>
+                    <li class="nav-item" data-target="set-theme"><i class="bi bi-palette"></i> 主题切换</li> <!-- 占位 -->
+                    <li class="nav-item" data-target="set-backup"><i class="bi bi-cloud-arrow-up"></i> 备份与恢复</li>
+                    <li class="nav-item" data-target="set-about"><i class="bi bi-info-circle"></i> 关于我们</li>
+                </ul>
+                <div class="setting-footer">
+                    <div class="version">Alpha V1.0</div>
                 </div>
-                <div id="bgInputGroupColor" style="display:none;">
-                    <p>选择颜色:</p>
-                    <input type="color" id="bgColorInput" value="#333333" style="height: 40px; padding: 0;">
-                </div>
-                <button class="primary-btn" id="saveBgBtn">保存背景</button>
             </div>
 
-            <div class="panel" id="backup-panel">
-                <h4>本地备份</h4>
-                <div class="row">
-                    <button id="exportLocalBtn">导出配置 (JSON)</button>
-                    <button id="importLocalBtn" style="background:#666;">导入配置</button>
-                    <input type="file" id="fileInput" style="display:none" accept=".json">
+            <!-- 设置右侧内容 -->
+            <div class="setting-main">
+                <button class="close-setting-btn" id="closeSettings">×</button>
+                
+                <!-- 面板1: 常规设置 (UI参考) -->
+                <div class="setting-panel active" id="set-general">
+                    <div class="setting-section">
+                        <h3 class="section-title">控制栏</h3>
+                        <div class="setting-row">
+                            <span class="label">侧边栏</span>
+                            <div class="control">
+                                <span class="value-text">一直显示</span>
+                                <i class="bi bi-caret-down-fill"></i>
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <span class="label">侧边栏位置</span>
+                            <div class="control">
+                                <span class="value-text">左侧</span>
+                                <i class="bi bi-caret-down-fill"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="setting-section">
+                        <h3 class="section-title">图标</h3>
+                        <!-- 修改部分：添加了ID以便JS控制 -->
+                        <div class="setting-row">
+                            <span class="label">打开方式</span>
+                            <div class="control" id="openTargetControl">
+                                <span class="value-text" id="openTargetValue">新标签页</span>
+                                <i class="bi bi-caret-down-fill"></i>
+                            </div>
+                        </div>                      
+                    </div>
                 </div>
-                <hr>
-                <h4>WebDAV 云同步</h4>
-                <input type="text" id="davUrl" placeholder="WebDAV 地址">
-                <input type="text" id="davUser" placeholder="账号">
-                <input type="password" id="davPass" placeholder="授权码（注意不是登录密码）">
-                <div class="row">
-                    <button id="davUploadBtn">上传备份</button>
-                    <button id="davDownloadBtn">恢复备份</button>
+
+                <!-- 面板2: 壁纸设置 -->
+                <div class="setting-panel" id="set-wallpaper">
+                    <div class="setting-section">
+                        <h3 class="section-title">壁纸设置</h3>
+                        <div class="bg-type-select" style="margin-top:15px;">
+                            <label><input type="radio" name="bgType" value="img" checked> 图片链接</label>
+                            <label><input type="radio" name="bgType" value="color"> 纯色背景</label>
+                        </div>
+                        <div id="bgInputGroupUrl" style="margin-top: 10px;">
+                            <input type="text" id="bgInput" class="modern-input" placeholder="https://...">
+                        </div>
+                        <div id="bgInputGroupColor" style="display:none; margin-top: 10px;">
+                            <input type="color" id="bgColorInput" style="width: 100%; height: 40px; border:none;">
+                        </div>
+                        <div style="margin-top: 20px; text-align: right;">
+                            <button class="primary-btn" id="saveBgBtn" style="width: auto; padding: 8px 25px;">应用壁纸</button>
+                        </div>
+                    </div>
                 </div>
-                <p class="status-msg" id="davMsg"></p>
+
+                <!-- 面板3: 备份与恢复 -->
+                <div class="setting-panel" id="set-backup">
+                    <div class="setting-section">
+                        <h3 class="section-title">本地数据</h3>
+                        <div class="setting-row">
+                            <span class="label">导出配置 (JSON)</span>
+                            <button class="action-btn" id="exportLocalBtn">导出</button>
+                        </div>
+                        <div class="setting-row">
+                            <span class="label">导入配置</span>
+                            <button class="action-btn" id="importLocalBtn">导入</button>
+                            <input type="file" id="fileInput" style="display:none" accept=".json">
+                        </div>
+                    </div>
+                    <div class="setting-section">
+                        <h3 class="section-title">WebDAV 云同步</h3>
+                        <input type="text" id="davUrl" class="modern-input" placeholder="WebDAV 地址" style="margin-bottom:10px;">
+                        <input type="text" id="davUser" class="modern-input" placeholder="账号" style="margin-bottom:10px;">
+                        <input type="password" id="davPass" class="modern-input" placeholder="授权码/密码" style="margin-bottom:10px;">
+                        <div style="display: flex; gap: 10px; margin-top: 10px;">
+                            <button class="primary-btn" id="davUploadBtn">上传备份</button>
+                            <button class="action-btn" id="davDownloadBtn">恢复备份</button>
+                        </div>
+                        <p class="status-msg" id="davMsg" style="margin-top:10px; color:#888; font-size:12px;"></p>
+                    </div>
+                </div>
+
+                <!-- 其他面板占位 -->
+                <div class="setting-panel" id="set-theme"><div style="padding:20px;">主题功能开发中...</div></div>
+                <div class="setting-panel" id="set-about"><div style="padding:20px;">WeTab 复刻版 V2.4 <br> 基于纯原生 JS 开发。</div></div>
+
             </div>
-            <button class="close-modal" id="closeSettings">×</button>
         </div>
     </div>
 
@@ -196,6 +278,8 @@
         </div>
     </div>
 
+    <!-- 引入 Cropper.js 脚本 -->
+    <script src="js/cropper.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

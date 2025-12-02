@@ -29,9 +29,14 @@ const defaultData = {
     activeCatIndex: 0,
     bgType: "img", 
     bgValue: "https://4kwallpapers.com/images/walls/thumbs_3t/18741.png",
+    openTarget: "_blank", // 新增：默认新标签页打开
     webdav: { url: "", user: "", pass: "" },
     categories: [
-        { name: "主页", icon: "bi-house-door", sites: [{name:"Google", url:"https://google.com", type: "online", content: "https://www.google.com/favicon.ico"}] },
+        { name: "主页", icon: "bi-house-door", sites: [
+            {name:"Google", url:"https://google.com", type: "online"},
+            {name:"哔哩哔哩",url:"http://www.bilibili.com/",type:"online"},
+            {name:"知乎",url:"https://www.zhihu.com/",type:"online"},
+            {name:"必应Bing",url:"https://cn.bing.com/",type:"online"} ] }, 
         { name: "办公", icon: "bi-briefcase", sites: [] },
         { name: "娱乐", icon: "bi-controller", sites: [] },
         { name: "购物", icon: "bi-bag", sites: [] }
@@ -54,6 +59,7 @@ let tempIconData = { type: 'online', content: '', bgColor: '' };
 let sidebarContextMenuIndex = -1;
 let sidebarEditingIndex = -1;
 let tempSidebarIcon = "";
+let cropper = null; // Cropper实例
 
 const grid = document.getElementById('grid');
 const sidebarList = document.getElementById('sidebarList');
@@ -73,6 +79,23 @@ function getDomain(url) {
     }
 }
 
+// --- 辅助函数：图片 URL 转 Base64 (用于缓存) ---
+async function urlToBase64(url) {
+    try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (error) {
+        console.error("Icon cache failed:", error);
+        return null; // 如果下载失败，返回 null，后续逻辑会回退到使用 URL
+    }
+}
+
 // --- 3. 初始化流程 ---
 document.addEventListener('DOMContentLoaded', () => {
     initContextMenu();          
@@ -89,27 +112,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadData();
 
-    chrome.storage.onChanged.addListener((changes) => {
-        if (changes.myTabData) loadData();
-    });
+    if(chrome.storage && chrome.storage.onChanged) {
+        chrome.storage.onChanged.addListener((changes) => {
+            if (changes.myTabData) loadData();
+        });
+    }
 });
 
 function loadData() {
-    chrome.storage.local.get(['myTabData'], (res) => {
-        appData = res.myTabData || JSON.parse(JSON.stringify(defaultData));
-        if(!appData.categories) appData.categories = defaultData.categories;
-        if(!appData.customEngines) appData.customEngines = []; 
-        if(!appData.bgType) appData.bgType = 'img';
+    if(chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(['myTabData'], (res) => {
+            appData = res.myTabData || JSON.parse(JSON.stringify(defaultData));
+            // 兼容性处理
+            if(!appData.categories) appData.categories = defaultData.categories;
+            if(!appData.customEngines) appData.customEngines = []; 
+            if(!appData.bgType) appData.bgType = 'img';
+            if(appData.openTarget === undefined) appData.openTarget = "_blank"; // 默认值
+            
+            renderUI();
+            initSearch(); 
+        });
+    } else {
+        // 本地调试用
+        const localStr = localStorage.getItem('myTabData');
+        appData = localStr ? JSON.parse(localStr) : JSON.parse(JSON.stringify(defaultData));
         renderUI();
-        initSearch(); 
-    });
+        initSearch();
+    }
 }
 
 function saveData() {
     if (!appData) return; 
-    chrome.storage.local.set({ myTabData: appData }, () => {
+    if(chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({ myTabData: appData }, () => {
+            renderUI();
+        });
+    } else {
+        localStorage.setItem('myTabData', JSON.stringify(appData));
         renderUI();
-    });
+    }
 }
 
 // --- 4. 核心渲染逻辑 ---
@@ -179,7 +220,6 @@ function renderSidebar() {
     sidebarList.appendChild(addBtn);
 }
 
-// 渲染网格图标
 function renderGrid(sites, filterText = "") {
     grid.innerHTML = '';
     const displaySites = filterText 
@@ -194,27 +234,20 @@ function renderGrid(sites, filterText = "") {
         let iconHtml = '';
         
         if (site.type === 'solid') {
-            // 纯色图标
             iconHtml = `
                 <div class="icon-box" style="background:${site.bgColor}; color:white;">
                     <span>${site.content || site.name.substring(0,2)}</span>
                 </div>`;
-        } else if (site.type === 'local') {
-            // 本地/Base64图标
-            iconHtml = `
-                <div class="icon-box">
-                    <img src="${site.content}"> 
-                </div>`;
         } else {
-            // 在线图标逻辑
+            // type 'local' or 'online' with cached base64 both behave here
             let imgSrc = site.content;
             const domain = getDomain(site.url);
             
-            if (!imgSrc) {
+            // 如果内容为空，尝试构建在线链接作为fallback（针对旧数据）
+            if (!imgSrc && site.type === 'online') {
                 imgSrc = `https://api.iowen.cn/favicon/${domain}.png`;
             }
             
-            // 备用图标
             const fallbackIconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
             
             iconHtml = `
@@ -225,14 +258,13 @@ function renderGrid(sites, filterText = "") {
 
         div.innerHTML = `${iconHtml}<span class="app-name">${site.name}</span>`;
 
-        // 错误回退处理
         const img = div.querySelector('img');
-        if (img && site.type !== 'local') {
+        if (img && site.type !== 'solid') {
             img.onerror = function() {
                 const currentSrc = this.src;
                 const fallback = this.getAttribute('data-fallback');
-                
-                if (currentSrc !== fallback && fallback) {
+                // 避免 fallback 死循环
+                if (currentSrc !== fallback && fallback && !currentSrc.startsWith('data:')) {
                     this.src = fallback;
                 } else {
                     this.style.display = 'none';
@@ -243,9 +275,14 @@ function renderGrid(sites, filterText = "") {
             };
         }
 
+        // 修改：根据设置决定打开方式
         div.onclick = () => {
             let url = site.url.startsWith('http') ? site.url : `https://${site.url}`;
-            window.location.href = url;
+            if (appData.openTarget === '_self') {
+                window.location.href = url;
+            } else {
+                window.open(url, '_blank');
+            }
         };
 
         div.addEventListener('contextmenu', (e) => {
@@ -266,29 +303,22 @@ function renderGrid(sites, filterText = "") {
     }
 }
 
-// --- 5. 侧边栏交互逻辑 ---
+// --- 5. 侧边栏 & 网格交互 ---
 function initSidebarContextMenu() {
     const editBtn = document.getElementById('ctxSidebarEdit');
     const delBtn = document.getElementById('ctxSidebarDelete');
 
     editBtn.onclick = () => {
-        if (sidebarContextMenuIndex > -1) {
-            openSidebarModal(sidebarContextMenuIndex);
-        }
+        if (sidebarContextMenuIndex > -1) openSidebarModal(sidebarContextMenuIndex);
         sidebarContextMenu.style.display = 'none';
     };
 
     delBtn.onclick = () => {
         if (sidebarContextMenuIndex > -1) {
-            if (appData.categories.length <= 1) {
-                alert("至少保留一个分类");
-                return;
-            }
+            if (appData.categories.length <= 1) return alert("至少保留一个分类");
             if (confirm('确定删除该分类及其下所有图标吗？')) {
                 appData.categories.splice(sidebarContextMenuIndex, 1);
-                if (appData.activeCatIndex >= appData.categories.length) {
-                    appData.activeCatIndex = 0;
-                }
+                if (appData.activeCatIndex >= appData.categories.length) appData.activeCatIndex = 0;
                 saveData();
             }
         }
@@ -302,7 +332,6 @@ function showSidebarContextMenu(e, index) {
     
     let top = e.clientY;
     let left = e.clientX + 10; 
-
     if (top + 100 > window.innerHeight) top = window.innerHeight - 100;
 
     sidebarContextMenu.style.display = 'block';
@@ -317,8 +346,8 @@ function initSidebarModal() {
     const cancelBtn = document.getElementById('deleteSidebarBtn'); 
     const iconGrid = document.getElementById('sidebarIconGrid');
     const nameInput = document.getElementById('sidebarNameInput');
-
     const closeModal = () => modal.style.display = 'none';
+
     closeBtn.onclick = closeModal;
     if(cancelBtn) cancelBtn.onclick = closeModal;
 
@@ -340,12 +369,7 @@ function initSidebarModal() {
         if (!name) return alert("请输入分类名称");
 
         if (sidebarEditingIndex === -1) {
-            const newCat = {
-                name: name,
-                icon: tempSidebarIcon || "bi-grid",
-                sites: []
-            };
-            appData.categories.push(newCat);
+            appData.categories.push({ name: name, icon: tempSidebarIcon || "bi-grid", sites: [] });
             appData.activeCatIndex = appData.categories.length - 1;
         } else {
             const cat = appData.categories[sidebarEditingIndex];
@@ -379,7 +403,7 @@ function openSidebarModal(index) {
         for(let item of items) {
             if(item.innerHTML.includes(tempSidebarIcon)) {
                 item.classList.add('selected');
-                item.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                item.scrollIntoView({ block: 'center' });
                 break;
             }
         }
@@ -387,15 +411,12 @@ function openSidebarModal(index) {
     modal.style.display = 'flex';
 }
 
-// --- 6. 主网格右键菜单逻辑 ---
 function initContextMenu() {
     document.getElementById('ctxOpenCurrent').onclick = () => {
-        if(!appData) return;
         const site = appData.categories[appData.activeCatIndex].sites[contextMenuTargetIndex];
         window.location.href = site.url.startsWith('http') ? site.url : `https://${site.url}`;
     };
     document.getElementById('ctxOpenNew').onclick = () => {
-        if(!appData) return;
         const site = appData.categories[appData.activeCatIndex].sites[contextMenuTargetIndex];
         window.open(site.url.startsWith('http') ? site.url : `https://${site.url}`, '_blank');
     };
@@ -404,7 +425,6 @@ function initContextMenu() {
         contextMenu.style.display = 'none';
     };
     document.getElementById('ctxDelete').onclick = () => {
-        if(!appData) return;
         if(confirm('确定删除此图标吗？')) {
             appData.categories[appData.activeCatIndex].sites.splice(contextMenuTargetIndex, 1);
             saveData();
@@ -430,7 +450,7 @@ function showContextMenu(e, index) {
     contextMenu.style.left = `${left}px`;
 }
 
-// --- 7. 搜索引擎逻辑 ---
+// --- 6. 搜索引擎逻辑 ---
 function initSearch() {
     if (!appData || !appData.customEngines) return;
 
@@ -439,13 +459,9 @@ function initSearch() {
     const currentEngineIcon = document.getElementById('currentEngineIcon');
     
     let allEngines = { ...defaultEngines };
-    
-    appData.customEngines.forEach(eng => {
-        allEngines[eng.name] = eng; 
-    });
+    appData.customEngines.forEach(eng => allEngines[eng.name] = eng);
     
     if (!allEngines[currentEngine]) currentEngine = 'bing';
-    
     currentEngineIcon.src = allEngines[currentEngine].icon;
     searchInput.placeholder = `在 ${allEngines[currentEngine].name} 中搜索...`;
     
@@ -458,13 +474,11 @@ function initSearch() {
     };
     
     engineDropdown.innerHTML = '';
-    
     Object.keys(allEngines).forEach(key => {
         const eng = allEngines[key];
         const item = document.createElement('div');
         item.className = 'engine-item';
         item.innerHTML = `<img src="${eng.icon}"><span>${eng.name}</span>`;
-        
         const img = item.querySelector('img');
         if(img) img.onerror = function() { this.src = 'icon.png'; };
 
@@ -475,17 +489,6 @@ function initSearch() {
             engineDropdown.style.display = 'none';
             engineSelectBtn.classList.remove('active');
         };
-        
-        if (!defaultEngines[key]) {
-            item.oncontextmenu = (e) => {
-                e.preventDefault();
-                if(confirm(`删除搜索引擎 "${eng.name}"?`)) {
-                    appData.customEngines = appData.customEngines.filter(e => e.name !== key);
-                    saveData();
-                    initSearch(); 
-                }
-            };
-        }
         engineDropdown.appendChild(item);
     });
 
@@ -511,9 +514,7 @@ function initSearch() {
 
     searchInput.oninput = (e) => {
         const val = e.target.value.trim();
-        if (appData && appData.categories) {
-            renderGrid(appData.categories[appData.activeCatIndex].sites, val);
-        }
+        if (appData && appData.categories) renderGrid(appData.categories[appData.activeCatIndex].sites, val);
     };
 
     searchInput.onkeypress = (e) => {
@@ -527,7 +528,11 @@ function initSearch() {
                 } else {
                     targetUrl = targetUrl + encodeURIComponent(val);
                 }
-                window.location.href = targetUrl;
+                if (appData.openTarget === '_self') {
+                    window.location.href = targetUrl;
+                } else {
+                    window.open(targetUrl, '_blank');
+                }
             }
         }
     };
@@ -546,8 +551,6 @@ function initEngineModal() {
 
     modal.renderPresets = () => {
         grid.innerHTML = '';
-        if (!appData) return;
-
         const addedNames = appData.customEngines.map(e => e.name);
         const defaultNames = Object.values(defaultEngines).map(e => e.name);
 
@@ -572,9 +575,7 @@ function initEngineModal() {
 
             if (!isDefault) {
                 item.onclick = () => {
-                    if(!appData) return;
                     const alreadyAddedIndex = appData.customEngines.findIndex(e => e.name === preset.name);
-                    
                     if (alreadyAddedIndex > -1) {
                         appData.customEngines.splice(alreadyAddedIndex, 1);
                         item.classList.remove('selected');
@@ -591,73 +592,96 @@ function initEngineModal() {
     };
 
     saveCustomBtn.onclick = () => {
-        if(!appData) return;
         const urlStr = customUrlInput.value.trim();
         let nameStr = customNameInput.value.trim();
-
         if (!urlStr) return alert('请输入网址');
         if (!nameStr) nameStr = "自定义";
         
-        const icon = `https://api.iowen.cn/favicon/${getDomain(urlStr)}.png`;
         appData.customEngines.push({
             name: nameStr, 
             url: urlStr, 
-            icon: icon, 
+            icon: `https://api.iowen.cn/favicon/${getDomain(urlStr)}.png`, 
             isCustom: true
         });
-        
         saveData();
         initSearch();
-        customUrlInput.value = ''; 
-        customNameInput.value = '';
+        customUrlInput.value = ''; customNameInput.value = '';
         modal.renderPresets(); 
     };
 }
 
-// --- 8. 全局设置 & 备份恢复逻辑 ---
+// --- 7. 设置窗口 (重构版) ---
 function initSettings() {
     const modal = document.getElementById('settingsModal');
-    
+    const closeBtn = document.getElementById('closeSettings');
     const settingsBtn = document.getElementById('settingsBtn');
+    
     if(settingsBtn) {
         settingsBtn.onclick = () => {
             if (!appData) return; 
-
+            
+            // 初始化壁纸设置数据
             const isColor = appData.bgType === 'color';
             const bgRadio = document.querySelector(`input[name="bgType"][value="${isColor ? 'color' : 'img'}"]`);
             if(bgRadio) bgRadio.checked = true;
-            
-            const bgUrlGroup = document.getElementById('bgInputGroupUrl');
-            const bgColorGroup = document.getElementById('bgInputGroupColor');
-            bgUrlGroup.style.display = isColor ? 'none' : 'block';
-            bgColorGroup.style.display = isColor ? 'block' : 'none';
+            document.getElementById('bgInputGroupUrl').style.display = isColor ? 'none' : 'block';
+            document.getElementById('bgInputGroupColor').style.display = isColor ? 'block' : 'none';
 
-            if (isColor) {
-                document.getElementById('bgColorInput').value = appData.bgValue;
-            } else {
-                document.getElementById('bgInput').value = appData.bgValue;
-            }
+            if (isColor) document.getElementById('bgColorInput').value = appData.bgValue;
+            else document.getElementById('bgInput').value = appData.bgValue;
 
+            // 初始化WebDAV数据
             if(appData.webdav) {
                 document.getElementById('davUrl').value = appData.webdav.url || "";
                 document.getElementById('davUser').value = appData.webdav.user || "";
                 document.getElementById('davPass').value = appData.webdav.pass || "";
             }
+
+            // 修改：初始化打开方式显示
+            const targetValueSpan = document.getElementById('openTargetValue');
+            targetValueSpan.innerText = (appData.openTarget === '_self') ? '当前标签页' : '新标签页';
+
+            // 默认显示第一个Tab
+            document.querySelector('.nav-item[data-target="set-general"]').click();
             modal.style.display = 'flex';
         };
     }
 
-    document.getElementById('closeSettings').onclick = () => modal.style.display = 'none';
+    closeBtn.onclick = () => modal.style.display = 'none';
 
-    document.querySelectorAll('.settings-content .tab').forEach(tab => {
-        tab.onclick = () => {
-            document.querySelectorAll('.settings-content .tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.settings-content .panel').forEach(p => p.classList.remove('active'));
-            tab.classList.add('active');
-            document.getElementById(tab.dataset.target).classList.add('active');
+    // Tab 切换逻辑
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.onclick = () => {
+            document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+            item.classList.add('active');
+            
+            const targetId = item.getAttribute('data-target');
+            document.querySelectorAll('.setting-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            document.getElementById(targetId).classList.add('active');
         };
     });
 
+    // 修改：打开方式切换逻辑
+    const openTargetControl = document.getElementById('openTargetControl');
+    if(openTargetControl) {
+        openTargetControl.onclick = () => {
+            // 切换状态
+            if (appData.openTarget === '_blank') {
+                appData.openTarget = '_self';
+            } else {
+                appData.openTarget = '_blank';
+            }
+            // 更新UI
+            const targetValueSpan = document.getElementById('openTargetValue');
+            targetValueSpan.innerText = (appData.openTarget === '_self') ? '当前标签页' : '新标签页';
+            // 保存
+            saveData();
+        };
+    }
+
+    // 壁纸类型切换
     document.querySelectorAll('input[name="bgType"]').forEach(radio => {
         radio.onchange = (e) => {
             const isColor = e.target.value === 'color';
@@ -667,10 +691,8 @@ function initSettings() {
     });
 
     document.getElementById('saveBgBtn').onclick = () => {
-        if (!appData) return;
         const type = document.querySelector('input[name="bgType"]:checked').value;
         let value = type === 'img' ? document.getElementById('bgInput').value : document.getElementById('bgColorInput').value;
-        
         if (value) {
             appData.bgType = type;
             appData.bgValue = value;
@@ -679,8 +701,8 @@ function initSettings() {
         }
     };
 
+    // 备份逻辑
     document.getElementById('exportLocalBtn').onclick = () => {
-        if (!appData) return;
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData));
         const a = document.createElement('a');
         a.href = dataStr; a.download = "mytab_backup.json"; a.click();
@@ -699,23 +721,20 @@ function initSettings() {
                     saveData();
                     alert("恢复成功");
                     modal.style.display = 'none';
-                } else {
-                    alert("文件格式不对");
-                }
+                } else alert("文件格式不对");
             } catch(e) { alert("文件解析失败"); }
         }
         reader.readAsText(file);
     };
 
+    // WebDAV 逻辑
     const davMsg = document.getElementById('davMsg');
     const getDav = () => ({
         url: document.getElementById('davUrl').value,
         user: document.getElementById('davUser').value,
         pass: document.getElementById('davPass').value
     });
-
     document.getElementById('davUploadBtn').onclick = async () => {
-        if (!appData) return;
         const {url, user, pass} = getDav();
         appData.webdav = {url, user, pass};
         try {
@@ -729,7 +748,6 @@ function initSettings() {
             saveData();
         } catch(e) { davMsg.textContent = "失败:" + e.message; }
     };
-
     document.getElementById('davDownloadBtn').onclick = async () => {
         const {url, user, pass} = getDav();
         try {
@@ -747,13 +765,11 @@ function initSettings() {
     };
 }
 
-// --- 9. 图标添加/编辑抽屉 (Drawer) ---
+// --- 8. 图标添加/编辑抽屉 ---
 function initDrawer() {
     const backBtn = document.getElementById('closeDrawerBtn');
     if (backBtn) backBtn.onclick = closeDrawer;
-    
-    const overlay = document.getElementById('drawerOverlay');
-    overlay.onclick = closeDrawer;
+    document.getElementById('drawerOverlay').onclick = closeDrawer;
 
     const tabs = document.querySelectorAll('.type-tab');
     tabs.forEach(tab => {
@@ -767,27 +783,16 @@ function initDrawer() {
         };
     });
 
-    // 绑定输入事件以实时预览
-    const drawerUrl = document.getElementById('drawerUrl');
-    // [修改] 删除了 customIconUrl 的绑定
-    const drawerIconText = document.getElementById('drawerIconText');
-    const drawerName = document.getElementById('drawerName');
-    // [修改] 删除了 fetchIconBtn 的绑定
-
-    // 简化监听逻辑，确保每次输入都触发更新
-    const triggerUpdate = () => {
+    document.getElementById('drawerUrl').addEventListener('input', () => {
         if(tempIconData.type === 'online') updatePreview();
-    };
+    });
 
-    drawerUrl.addEventListener('input', triggerUpdate);
-    // [修改] 删除了 customIconUrl 的监听
-
-    drawerIconText.addEventListener('input', (e) => {
+    document.getElementById('drawerIconText').addEventListener('input', (e) => {
         tempIconData.content = e.target.value;
         if(tempIconData.type === 'solid') updatePreview();
     });
 
-    drawerName.addEventListener('input', () => {
+    document.getElementById('drawerName').addEventListener('input', () => {
         if(tempIconData.type === 'solid') updatePreview();
     });
     
@@ -807,21 +812,71 @@ function initDrawer() {
         colorGrid.appendChild(d);
     });
 
+    // 本地上传逻辑修改：打开裁剪
     const uploadArea = document.getElementById('uploadArea');
     const localFileInput = document.getElementById('localFileInput');
+    
     uploadArea.onclick = () => localFileInput.click();
     localFileInput.onchange = (e) => {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
             reader.onload = (evt) => {
-                tempIconData.content = evt.target.result; 
-                updatePreview();
+                // 打开裁剪模态框
+                openCropper(evt.target.result);
+                localFileInput.value = ''; // 清空input防止重复选择不触发
             };
             reader.readAsDataURL(file);
         }
     };
+
     document.getElementById('saveDrawerBtn').onclick = saveDrawerData;
+
+    // 裁剪相关事件绑定
+    document.getElementById('cancelCropBtn').onclick = () => {
+        document.getElementById('cropperModal').style.display = 'none';
+        if (cropper) cropper.destroy();
+    };
+
+    document.getElementById('confirmCropBtn').onclick = () => {
+        if (!cropper) return;
+        // 获取裁剪后的 Canvas
+        const canvas = cropper.getCroppedCanvas({
+            width: 256, // 限制最大尺寸，避免 Base64 过大
+            height: 256
+        });
+        const base64Url = canvas.toDataURL('image/png');
+        
+        // 更新数据和预览
+        tempIconData.content = base64Url;
+        updatePreview();
+        
+        // 关闭裁剪框
+        document.getElementById('cropperModal').style.display = 'none';
+        cropper.destroy();
+    };
+}
+
+// --- 9. 裁剪功能实现 ---
+function openCropper(imageSrc) {
+    const modal = document.getElementById('cropperModal');
+    const image = document.getElementById('cropperImage');
+    
+    modal.style.display = 'flex';
+    image.src = imageSrc;
+
+    if (cropper) {
+        cropper.destroy();
+    }
+
+    // 初始化 Cropper.js
+    cropper = new Cropper(image, {
+        aspectRatio: 1, // 1:1 正方形裁剪
+        viewMode: 1,    // 限制裁剪框不超过图片
+        autoCropArea: 0.8,
+        background: false,
+        zoomable: true
+    });
 }
 
 function openDrawer(isEdit, index = -1) {
@@ -831,7 +886,6 @@ function openDrawer(isEdit, index = -1) {
     
     const drawerUrl = document.getElementById('drawerUrl');
     const drawerName = document.getElementById('drawerName');
-    // [修改] 删除了 customIconUrl 的获取
     const drawerIconText = document.getElementById('drawerIconText');
     const title = document.getElementById('drawerTitle');
     
@@ -839,7 +893,6 @@ function openDrawer(isEdit, index = -1) {
 
     drawerUrl.value = '';
     drawerName.value = '';
-    // [修改] 删除了 customIconUrl 的重置
     drawerIconText.value = '';
     
     tempIconData = { type: 'online', content: '', bgColor: '#FF9C9C' };
@@ -855,11 +908,7 @@ function openDrawer(isEdit, index = -1) {
         tempIconData.content = site.content || ''; 
         tempIconData.bgColor = site.bgColor || '#FF9C9C';
         
-        // [修改] 删除了将内容回填到 customIconUrl 的逻辑
-
-        if(tempIconData.type === 'solid') {
-            drawerIconText.value = tempIconData.content;
-        }
+        if(tempIconData.type === 'solid') drawerIconText.value = tempIconData.content;
         
         const targetTab = document.querySelector(`.type-tab[data-type="${tempIconData.type}"]`);
         if(targetTab) targetTab.click();
@@ -880,72 +929,55 @@ function closeDrawer() {
     const overlay = document.getElementById('drawerOverlay');
     drawer.classList.remove('open');
     overlay.classList.remove('show');
-    setTimeout(() => {
-        overlay.style.display = 'none';
-    }, 300);
+    setTimeout(() => { overlay.style.display = 'none'; }, 300);
 }
 
-// [修复] 改进的预览更新逻辑
 function updatePreview() {
     const drawerUrl = document.getElementById('drawerUrl');
-    // [修改] 删除了 customIconUrl 获取
     const drawerName = document.getElementById('drawerName');
     const drawerIconText = document.getElementById('drawerIconText');
     const previewBox = document.getElementById('previewBox');
     const previewImg = document.getElementById('previewImg');
     const previewText = document.getElementById('previewText');
 
-    // 1. 重置状态：先隐藏图片，清空文字
     previewBox.style.backgroundColor = 'rgba(255,255,255,0.9)';
     previewBox.style.color = '#333';
     previewImg.style.display = 'none';
     previewText.textContent = '';
-    
-    // 清除旧的事件绑定，防止冲突
     previewImg.onload = null;
     previewImg.onerror = null;
 
     if (tempIconData.type === 'online') {
-        // [修改] 不再检查 customVal，直接使用 urlVal
         const urlVal = drawerUrl.value.trim();
-
         let targetSrc = "";
         let useFallback = false;
         const domain = getDomain(urlVal);
 
-        if (urlVal && domain) {
-            // 默认先尝试 iowen 的 API
+        // 编辑模式下，如果已有缓存内容且 URL 未变（或只是预览），优先显示缓存
+        if (tempIconData.content && tempIconData.content.startsWith('data:')) {
+            targetSrc = tempIconData.content;
+        } else if (urlVal && domain) {
             targetSrc = `https://api.iowen.cn/favicon/${domain}.png`;
-            useFallback = true; // 标记可以使用备用源
+            useFallback = true; 
         }
 
         if (targetSrc) {
-            // 设置图片源
             previewImg.src = targetSrc;
-
-            // 加载成功：显示图片
             previewImg.onload = function() {
                 this.style.display = 'block';
                 previewText.textContent = '';
             };
-
-            // 加载失败：尝试备用源或显示问号
             previewImg.onerror = function() {
-                // 如果可以使用备用源，且当前还没用过 Google API (防止死循环)
                 if (useFallback && !this.src.includes('google.com')) {
-                    console.log("Primary icon failed, trying fallback...");
                     this.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
                 } else {
-                    // 彻底失败
                     this.style.display = 'none';
                     previewText.textContent = '?';
                 }
             };
         } else {
-            // 没有 URL 输入
             previewText.textContent = "?";
         }
-
     } else if (tempIconData.type === 'solid') {
         previewBox.style.backgroundColor = tempIconData.bgColor;
         previewBox.style.color = 'white';
@@ -961,11 +993,12 @@ function updatePreview() {
     }
 }
 
-function saveDrawerData() {
+// 修改：异步函数，处理图片缓存
+async function saveDrawerData() {
     if(!appData) return;
     const drawerUrl = document.getElementById('drawerUrl');
     const drawerName = document.getElementById('drawerName');
-    // [修改] 删除了 customIconUrl 获取
+    const saveBtn = document.getElementById('saveDrawerBtn');
     
     const name = drawerName.value.trim();
     let url = drawerUrl.value.trim();
@@ -973,11 +1006,24 @@ function saveDrawerData() {
     if (!name || !url) return alert("请填写名称和网址");
     if (!url.startsWith('http')) url = 'https://' + url;
 
+    // 禁用按钮防止重复点击
+    saveBtn.innerText = "处理中...";
+    saveBtn.disabled = true;
+
+    // 如果是在线图标，尝试获取并转换为 Base64
     if (tempIconData.type === 'online') {
-        // [修改] 不再检查 customVal，始终自动生成
         const domain = getDomain(url);
-        // 默认保存 iowen 格式，渲染时会自动回退
-        tempIconData.content = `https://api.iowen.cn/favicon/${domain}.png`;
+        // 如果已经是Base64（比如编辑没改动），就不重新下载了
+        if (!tempIconData.content || !tempIconData.content.startsWith('data:')) {
+            const apiUrl = `https://api.iowen.cn/favicon/${domain}.png`;
+            const base64 = await urlToBase64(apiUrl);
+            if (base64) {
+                tempIconData.content = base64;
+            } else {
+                // 如果下载失败（可能是CORS或网络问题），回退到 URL
+                tempIconData.content = apiUrl;
+            }
+        }
     }
 
     const newSite = {
@@ -988,16 +1034,16 @@ function saveDrawerData() {
         bgColor: tempIconData.bgColor
     };
 
-    if (newSite.type === 'solid' && !newSite.content) {
-        newSite.content = name.substring(0, 2);
-    }
+    if (newSite.type === 'solid' && !newSite.content) newSite.content = name.substring(0, 2);
 
-    if (isEditMode) {
-        appData.categories[appData.activeCatIndex].sites[editingIndex] = newSite;
-    } else {
-        appData.categories[appData.activeCatIndex].sites.push(newSite);
-    }
+    if (isEditMode) appData.categories[appData.activeCatIndex].sites[editingIndex] = newSite;
+    else appData.categories[appData.activeCatIndex].sites.push(newSite);
 
     saveData();
+    
+    // 恢复按钮状态
+    saveBtn.innerText = "完成";
+    saveBtn.disabled = false;
+    
     closeDrawer();
 }
