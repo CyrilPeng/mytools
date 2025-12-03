@@ -2,12 +2,14 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>新标签页</title>
-    <!-- 引入 Bootstrap Icons -->
+    <!-- 移动端适配核心：禁止缩放，适配宽度 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MyTab 起始页</title>
+    <!-- 引用资源 -->
     <link rel="stylesheet" href="css/bootstrap-icons.css">
-    <!-- 引入 Cropper.js 样式 -->
     <link rel="stylesheet" href="css/cropper.min.css">
     <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="icon.png" type="image/png">
 </head>
 <body>
     <!-- 背景层 -->
@@ -15,7 +17,7 @@
 
     <!-- 布局容器 -->
     <div class="layout">
-        <!-- 左侧侧边栏 -->
+        <!-- 侧边栏 (CSS控制：桌面左侧，手机底部) -->
         <div class="sidebar">
             <div class="sidebar-scroll-area">
                 <div class="sidebar-top" id="sidebarList"></div>
@@ -30,7 +32,7 @@
                     <img id="currentEngineIcon" src="" alt="icon">
                     <div class="engine-dropdown" id="engineDropdown"></div>
                 </div>
-                <input type="text" id="searchInput" placeholder="输入搜索内容...">
+                <input type="text" id="searchInput" placeholder="搜索...">
             </div>
 
             <!-- 图标网格 -->
@@ -38,50 +40,48 @@
         </div>
     </div>
 
-    <!-- 设置按钮 -->
+    <!-- 设置按钮 (CSS控制位置) -->
     <div class="floating-settings-btn" id="settingsBtn" title="设置">
         <i class="bi bi-gear-fill"></i>
     </div>
 
-    <!-- 侧边栏右键菜单 -->
+    <!-- 上下文菜单 (右键/长按) -->
     <div class="context-menu" id="sidebarContextMenu">
         <div class="menu-item" id="ctxSidebarEdit"><i class="bi bi-pencil-square"></i> 编辑</div>
         <div class="menu-item delete" id="ctxSidebarDelete"><i class="bi bi-trash"></i> 移除</div>
     </div>
 
-    <!-- 主区域图标右键菜单 -->
     <div class="context-menu" id="contextMenu">
-        <div class="menu-item" id="ctxOpenCurrent">当前页面打开</div>
-        <div class="menu-item" id="ctxOpenNew">新标签页打开</div>
+        <div class="menu-item" id="ctxOpenCurrent">当前页打开</div>
+        <div class="menu-item" id="ctxOpenNew">新标签打开</div>
         <div class="menu-item" id="ctxEdit">编辑图标</div>
         <div class="menu-item delete" id="ctxDelete">删除</div>
     </div>
 
-    <!-- 侧边编辑抽屉 (添加/编辑图标用) -->
+    <!-- 编辑/添加 抽屉 -->
     <div class="drawer-overlay" id="drawerOverlay"></div>
     <div class="edit-drawer" id="editDrawer">
         <div class="drawer-header">
-            <span class="back-btn" id="closeDrawerBtn">❮</span>
+            <span class="back-btn" id="closeDrawerBtn"><i class="bi bi-chevron-down"></i></span>
             <span class="drawer-title" id="drawerTitle">自定义添加</span>
             <button class="finish-btn" id="saveDrawerBtn">完成</button>
         </div>
-        
         <div class="drawer-content">
             <div class="input-group">
-                <input type="text" id="drawerUrl" placeholder="输入网站链接 https://...">
+                <input type="text" id="drawerUrl" placeholder="链接 https://...">
                 <span class="input-icon">🔗</span>
             </div>
             <div class="input-group">
-                <input type="text" id="drawerName" placeholder="输入网站名称">
+                <input type="text" id="drawerName" placeholder="网站名称">
                 <span class="input-icon">📝</span>
             </div>
-
             <div class="icon-type-tabs">
-                <div class="type-tab active" data-type="online">在线图标</div>
-                <div class="type-tab" data-type="solid">纯色图标</div>
-                <div class="type-tab" data-type="local">本地上传</div>
+                <div class="type-tab active" data-type="online">在线</div>
+                <div class="type-tab" data-type="solid">纯色</div>
+                <div class="type-tab" data-type="local">上传</div>
             </div>
-
+            
+            <!-- 预览区 -->
             <div class="icon-preview-area">
                 <div class="icon-box preview-box" id="previewBox">
                     <img id="previewImg" src="" style="display:none;">
@@ -89,194 +89,148 @@
                 </div>
             </div>
 
+            <!-- 面板内容 -->
             <div class="tab-panel active" id="panel-online">
-                <p class="hint" style="margin-top: 0;">将根据上方网址自动获取图标并缓存到本地</p>
+                <p class="hint" style="margin-top: 10px; text-align:center; opacity:0.6;">输入网址自动获取图标</p>
             </div>
-
             <div class="tab-panel" id="panel-solid">
                 <div class="color-grid" id="colorGrid"></div>
                 <div class="input-group small-mt">
-                    <input type="text" id="drawerIconText" maxlength="2" placeholder="图标文字 (建议1-2字)">
-                    <span class="input-icon">T</span>
+                    <input type="text" id="drawerIconText" maxlength="2" placeholder="文字 (1-2字)">
                 </div>
             </div>
-
             <div class="tab-panel" id="panel-local">
                 <div class="upload-area" id="uploadArea">
-                    <span class="plus">+</span>
-                    <span>点击上传图片并裁剪</span>
+                    <span class="plus">+</span><span>点击上传</span>
                 </div>
                 <input type="file" id="localFileInput" accept="image/*" style="display:none;">
             </div>
         </div>
     </div>
 
-    <!-- 图片裁剪模态窗口 -->
+    <!-- 裁剪弹窗 -->
     <div class="modal" id="cropperModal" style="z-index: 1100;">
         <div class="modal-content cropper-content">
             <h3>裁剪图片</h3>
-            <div class="img-container">
-                <img id="cropperImage" src="">
-            </div>
+            <div class="img-container"><img id="cropperImage" src=""></div>
             <div class="cropper-actions">
                 <button class="delete-btn" id="cancelCropBtn">取消</button>
-                <button class="primary-btn" id="confirmCropBtn">确认裁剪</button>
+                <button class="primary-btn" id="confirmCropBtn">确认</button>
             </div>
         </div>
     </div>
 
-    <!-- 全新设计的设置窗口 -->
+    <!-- 设置弹窗 -->
     <div class="modal" id="settingsModal">
         <div class="setting-container">
-            <!-- 设置侧边栏 -->
             <div class="setting-sidebar">
                 <div class="user-profile">
                     <div class="avatar-circle"><i class="bi bi-person-fill"></i></div>
-                    <span class="user-name">本地用户</span>
+                    <span class="user-name">设置</span>
                 </div>
                 <ul class="setting-nav">
-                    <!-- 这里的 data-target 对应右侧的内容ID -->
-                    <li class="nav-item active" data-target="set-general"><i class="bi bi-sliders"></i> 常规设置</li>
+                    <li class="nav-item active" data-target="set-general"><i class="bi bi-sliders"></i> 常规</li>
                     <li class="nav-item" data-target="set-wallpaper"><i class="bi bi-image"></i> 壁纸</li>
-                    <li class="nav-item" data-target="set-theme"><i class="bi bi-palette"></i> 主题切换</li> <!-- 占位 -->
-                    <li class="nav-item" data-target="set-backup"><i class="bi bi-cloud-arrow-up"></i> 备份与恢复</li>
-                    <li class="nav-item" data-target="set-about"><i class="bi bi-info-circle"></i> 关于我们</li>
+                    <li class="nav-item" data-target="set-backup"><i class="bi bi-cloud-arrow-up"></i> 备份</li>
+                    <li class="nav-item" data-target="set-about"><i class="bi bi-info-circle"></i> 关于</li>
                 </ul>
-                <div class="setting-footer">
-                    <div class="version">Alpha V1.1</div>
-                </div>
             </div>
-
-            <!-- 设置右侧内容 -->
             <div class="setting-main">
                 <button class="close-setting-btn" id="closeSettings">×</button>
                 
-                <!-- 面板1: 常规设置 (UI参考) -->
+                <!-- 面板：常规 -->
                 <div class="setting-panel active" id="set-general">
                     <div class="setting-section">
-                        <h3 class="section-title">控制栏</h3>
-                        <div class="setting-row">
-                            <span class="label">侧边栏</span>
-                            <div class="control">
-                                <span class="value-text">一直显示</span>
-                                <i class="bi bi-caret-down-fill"></i>
-                            </div>
-                        </div>
+                        <h3 class="section-title">常规</h3>
                         <div class="setting-row">
                             <span class="label">侧边栏位置</span>
-                            <div class="control">
-                                <span class="value-text">左侧</span>
-                                <i class="bi bi-caret-down-fill"></i>
-                            </div>
+                            <div class="control"><span class="value-text">自动适应</span></div>
                         </div>
-                    </div>
-
-                    <div class="setting-section">
-                        <h3 class="section-title">图标</h3>
                         <div class="setting-row">
                             <span class="label">打开方式</span>
                             <div class="control" id="openTargetControl">
                                 <span class="value-text" id="openTargetValue">新标签页</span>
                                 <i class="bi bi-caret-down-fill"></i>
                             </div>
-                        </div>                      
+                        </div>
                     </div>
                 </div>
 
-                <!-- 面板2: 壁纸设置 -->
+                <!-- 面板：壁纸 -->
                 <div class="setting-panel" id="set-wallpaper">
                     <div class="setting-section">
-                        <h3 class="section-title">壁纸设置</h3>
+                        <h3 class="section-title">壁纸</h3>
                         <div class="bg-type-select" style="margin-top:15px;">
-                            <label><input type="radio" name="bgType" value="img" checked> 图片链接</label>
-                            <label><input type="radio" name="bgType" value="color"> 纯色背景</label>
+                            <label><input type="radio" name="bgType" value="img" checked> 图片</label>
+                            <label><input type="radio" name="bgType" value="color"> 纯色</label>
                         </div>
                         <div id="bgInputGroupUrl" style="margin-top: 10px;">
-                            <input type="text" id="bgInput" class="modern-input" placeholder="https://...">
+                            <input type="text" id="bgInput" class="modern-input" placeholder="图片 URL">
                         </div>
                         <div id="bgInputGroupColor" style="display:none; margin-top: 10px;">
                             <input type="color" id="bgColorInput" style="width: 100%; height: 40px; border:none;">
                         </div>
                         <div style="margin-top: 20px; text-align: right;">
-                            <button class="primary-btn" id="saveBgBtn" style="width: auto; padding: 8px 25px;">应用壁纸</button>
+                            <button class="primary-btn" id="saveBgBtn">应用</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- 面板3: 备份与恢复 -->
+                <!-- 面板：备份 -->
                 <div class="setting-panel" id="set-backup">
                     <div class="setting-section">
-                        <h3 class="section-title">本地数据</h3>
-                        <div class="setting-row">
-                            <span class="label">导出配置 (JSON)</span>
-                            <button class="action-btn" id="exportLocalBtn">导出</button>
-                        </div>
-                        <div class="setting-row">
-                            <span class="label">导入配置</span>
-                            <button class="action-btn" id="importLocalBtn">导入</button>
-                            <input type="file" id="fileInput" style="display:none" accept=".json">
-                        </div>
+                        <h3 class="section-title">数据</h3>
+                        <div class="setting-row"><span class="label">导出</span><button class="action-btn" id="exportLocalBtn">导出</button></div>
+                        <div class="setting-row"><span class="label">导入</span><button class="action-btn" id="importLocalBtn">导入</button><input type="file" id="fileInput" style="display:none" accept=".json"></div>
                     </div>
                     <div class="setting-section">
-                        <h3 class="section-title">WebDAV 云同步</h3>
-                        <input type="text" id="davUrl" class="modern-input" placeholder="WebDAV 地址" style="margin-bottom:10px;">
+                        <h3 class="section-title">WebDAV</h3>
+                        <input type="text" id="davUrl" class="modern-input" placeholder="地址" style="margin-bottom:10px;">
                         <input type="text" id="davUser" class="modern-input" placeholder="账号" style="margin-bottom:10px;">
-                        <input type="password" id="davPass" class="modern-input" placeholder="授权码/密码" style="margin-bottom:10px;">
+                        <input type="password" id="davPass" class="modern-input" placeholder="密码" style="margin-bottom:10px;">
                         <div style="display: flex; gap: 10px; margin-top: 10px;">
-                            <button class="primary-btn" id="davUploadBtn">上传备份</button>
-                            <button class="action-btn" id="davDownloadBtn">恢复备份</button>
+                            <button class="primary-btn" id="davUploadBtn">上传</button>
+                            <button class="action-btn" id="davDownloadBtn">恢复</button>
                         </div>
                         <p class="status-msg" id="davMsg" style="margin-top:10px; color:#888; font-size:12px;"></p>
                     </div>
                 </div>
 
-                <!-- 其他面板占位 -->
-                <div class="setting-panel" id="set-theme"><div style="padding:20px;">主题功能开发中...</div></div>
-                <div class="setting-panel" id="set-about"><div style="padding:20px;">MyTab~  <br> 基于纯原生 JS 开发。</div></div>
+                <!-- 面板：关于 -->
+                <div class="setting-panel" id="set-about"><div style="padding:20px;">MyTab Web 版 <br><span style="font-size:12px;opacity:0.6">Responsive Design Updated</span></div></div>
             </div>
         </div>
     </div>
 
-    <!-- 添加搜索引擎模态窗口 -->
+    <!-- 搜索引擎弹窗 -->
     <div id="engineModal" class="engine-modal-overlay">
         <div class="engine-modal-box">
-            <div class="engine-modal-header">
-                <span>添加搜索引擎</span>
-                <button class="close-engine-modal">×</button>
-            </div>
-            <div class="engine-modal-body">
-                <div class="preset-engine-grid" id="presetEngineGrid"></div>
-            </div>
+            <div class="engine-modal-header"><span>添加引擎</span><button class="close-engine-modal">×</button></div>
+            <div class="engine-modal-body"><div class="preset-engine-grid" id="presetEngineGrid"></div></div>
             <div class="engine-modal-footer">
-                <div class="custom-engine-title">自定义搜索引擎</div>
                 <div class="custom-engine-input-group">
-                    <div class="custom-icon-preview">🌐</div>
                     <input type="text" id="customEngineNameInput" placeholder="名称">
-                    <input type="text" id="customEngineUrlInput" placeholder="输入搜索地址，用 %s 代替关键词">
+                    <input type="text" id="customEngineUrlInput" placeholder="地址 (%s)">
                     <button id="saveCustomEngineBtn">保存</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 侧边栏编辑模态窗口 -->
+    <!-- 侧边栏编辑弹窗 -->
     <div class="modal" id="sidebarModal">
         <div class="modal-content sidebar-edit-content">
             <button class="close-modal" id="closeSidebarModal">×</button>
             <h3>编辑分组</h3>
             <div class="sidebar-icon-grid" id="sidebarIconGrid"></div>
-            <div class="input-group small-mt">
-                <input type="text" id="sidebarNameInput" placeholder="分组名称">
-                <span class="input-icon">Aa</span>
-            </div>
-            <div class="row" style="margin-top: 20px;">
-                <button class="primary-btn" id="saveSidebarBtn">保存</button>
-                <button class="delete-btn" id="deleteSidebarBtn" style="background: transparent; border:1px solid #444; color: #888;">取消</button>
+            <div class="input-group small-mt"><input type="text" id="sidebarNameInput" placeholder="分组名称"></div>
+            <div class="row" style="margin-top: 20px; display:flex; justify-content:space-between; width:100%;">
+                <button class="delete-btn" id="deleteSidebarBtn" style="flex:1; margin-right:10px;">取消</button>
+                <button class="primary-btn" id="saveSidebarBtn" style="flex:1;">保存</button>
             </div>
         </div>
     </div>
 
-    <!-- 引入 Cropper.js 脚本 -->
     <script src="js/cropper.min.js"></script>
     <script src="script.js"></script>
 </body>
