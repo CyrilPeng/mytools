@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "MyTab Alpha 1.0",
   "version": "1.0",
-  "description": "高仿WeTab：右键菜单 + 多引擎搜索 + WebDAV备份",
+  "description": "浏览器标签页：WebDAV备份 + 右键菜单 + 多引擎搜索",
   "chrome_url_overrides": {
     "newtab": "newtab.html"
   },
